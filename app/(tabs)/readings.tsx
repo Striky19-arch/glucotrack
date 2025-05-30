@@ -1,61 +1,139 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import { Stack } from 'expo-router';
-import { Droplet, Timer, RotateCw } from 'lucide-react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Platform, Linking } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import { Droplet, Timer, RotateCw, AlertCircle } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
 import { DatabaseService } from '@/services/DatabaseService';
 import { BluetoothStatus } from '@/components/BluetoothStatus';
 import { ReadingTypeSelector } from '@/components/ReadingTypeSelector';
 import { MeasurementResult } from '@/components/MeasurementResult';
+import { autoReadingService } from '@/services/AutoReadingService';
+import { BluetoothManager } from '@/services/BluetoothManager';
 
 type ReadingType = 'blood' | 'urine';
 
 export default function ReadingsScreen() {
+  const router = useRouter();
   const [readingType, setReadingType] = useState<ReadingType>('blood');
   const [measuring, setMeasuring] = useState(false);
   const [readingValue, setReadingValue] = useState<number | null>(null);
   const [unit, setUnit] = useState('mg/dL');
+  const [isAutoReading, setIsAutoReading] = useState(false);
+  const [isDeviceConnected, setIsDeviceConnected] = useState(false);
 
-  // Simulate a measurement
-  const startMeasurement = () => {
-    // Check if there's a connected device
-    const isDeviceConnected = true; // This would be checked from the BluetoothManager
+  // Vérifier la connexion du capteur au chargement
+  useEffect(() => {
+    const checkDeviceConnection = async () => {
+      try {
+        // Vérifier les permissions Bluetooth
+        const hasPermissions = await BluetoothManager.checkPermissions();
+        if (!hasPermissions) {
+          Alert.alert(
+            'Permission Bluetooth requise',
+            'L\'application a besoin d\'accéder au Bluetooth pour se connecter au capteur. Veuillez activer le Bluetooth dans les paramètres de votre appareil.',
+            [
+              {
+                text: 'Annuler',
+                style: 'cancel',
+                onPress: () => router.back(),
+              },
+              {
+                text: 'Paramètres',
+                onPress: () => {
+                  // Rediriger vers les paramètres de l'appareil
+                  if (Platform.OS === 'ios') {
+                    Linking.openURL('app-settings:');
+                  } else {
+                    Linking.openSettings();
+                  }
+                },
+              },
+            ]
+          );
+          return;
+        }
 
-    if (!isDeviceConnected) {
-      Alert.alert(
-        'Aucun appareil connecté',
-        'Veuillez connecter un appareil pour effectuer une mesure.',
-        [
-          {
-            text: 'OK',
-            onPress: () => console.log('OK Pressed'),
-          },
-        ]
-      );
-      return;
+        const device = BluetoothManager.getConnectedDevice();
+        const deviceConnected = !!device;
+        setIsDeviceConnected(deviceConnected);
+
+        if (!deviceConnected) {
+          Alert.alert(
+            'Capteur non connecté',
+            'Veuillez connecter un capteur pour effectuer des mesures.',
+            [
+              {
+                text: 'Annuler',
+                style: 'cancel',
+                onPress: () => router.back(),
+              },
+              {
+                text: 'Connecter',
+                onPress: () => router.push('/(tabs)/devices' as any),
+              },
+            ]
+          );
+          return;
+        }
+
+        // Si le capteur est connecté, démarrer la lecture automatique
+        try {
+          autoReadingService.startAutoReading(readingType);
+          setIsAutoReading(true);
+        } catch (error) {
+          Alert.alert(
+            'Erreur',
+            'Impossible de démarrer la lecture automatique. Veuillez vérifier la connexion du capteur.',
+            [{ text: 'OK' }]
+          );
+        }
+      } catch (error) {
+        console.error('Erreur lors de la vérification de la connexion:', error);
+        setIsDeviceConnected(false);
+      }
+    };
+
+    checkDeviceConnection();
+
+    // Nettoyer lors du démontage du composant
+    return () => {
+      autoReadingService.stopAutoReading();
+    };
+  }, []);
+
+  // Mettre à jour le type de lecture
+  useEffect(() => {
+    if (isAutoReading) {
+      try {
+        autoReadingService.startAutoReading(readingType);
+      } catch (error) {
+        setIsAutoReading(false);
+        Alert.alert(
+          'Erreur',
+          'Impossible de changer le type de lecture. Veuillez vérifier la connexion du capteur.',
+          [{ text: 'OK' }]
+        );
+      }
     }
+  }, [readingType]);
 
-    setMeasuring(true);
-    setReadingValue(null);
-
-    // Simulate measurement delay
-    setTimeout(() => {
-      // Generate a random reading value
-      const min = readingType === 'blood' ? 70 : 0;
-      const max = readingType === 'blood' ? 180 : 50;
-      const value = Math.floor(Math.random() * (max - min + 1) + min);
-      
-      setReadingValue(value);
-      setMeasuring(false);
-      
-      // Save to database
-      DatabaseService.saveReading({
-        type: readingType,
-        value,
-        unit,
-        timestamp: new Date().toISOString(),
-      });
-    }, 3000);
+  const toggleAutoReading = () => {
+    if (isAutoReading) {
+      autoReadingService.stopAutoReading();
+      setIsAutoReading(false);
+      setReadingValue(null);
+    } else {
+      try {
+        autoReadingService.startAutoReading(readingType);
+        setIsAutoReading(true);
+      } catch (error) {
+        Alert.alert(
+          'Erreur',
+          'Impossible de démarrer la lecture automatique. Veuillez vérifier la connexion du capteur.',
+          [{ text: 'OK' }]
+        );
+      }
+    }
   };
 
   return (
@@ -76,6 +154,21 @@ export default function ReadingsScreen() {
         }}
       />
 
+      {!isDeviceConnected && (
+        <View style={styles.warningBanner}>
+          <AlertCircle size={20} color={colors.white} />
+          <Text style={styles.warningText}>
+            Aucun capteur connecté. Veuillez connecter un capteur pour effectuer des mesures.
+          </Text>
+          <TouchableOpacity
+            style={styles.connectButton}
+            onPress={() => router.push('/(tabs)/devices' as any)}
+          >
+            <Text style={styles.connectButtonText}>Connecter</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <View style={styles.content}>
         <ReadingTypeSelector 
           selectedType={readingType} 
@@ -86,7 +179,7 @@ export default function ReadingsScreen() {
           {measuring ? (
             <View style={styles.measuringContainer}>
               <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.measuringText}>Mesure en cours...</Text>
+              <Text style={styles.measuringText}>Lecture en cours...</Text>
               <Text style={styles.waitText}>Veuillez patienter</Text>
               
               <View style={styles.timerContainer}>
@@ -107,7 +200,7 @@ export default function ReadingsScreen() {
               </View>
               <Text style={styles.instructionsTitle}>
                 {readingType === 'blood' 
-                  ? 'Mesure de glycémie sanguine' 
+                  ? 'Mesure de glycémie'
                   : 'Mesure de glucose urinaire'}
               </Text>
               <Text style={styles.instructionsText}>
@@ -120,33 +213,27 @@ export default function ReadingsScreen() {
                 <Text style={styles.stepText}>1. Préparez la bandelette</Text>
                 <Text style={styles.stepText}>2. Récoltez l'échantillon</Text>
                 <Text style={styles.stepText}>3. Insérez la bandelette dans l'appareil</Text>
-                <Text style={styles.stepText}>4. Appuyez sur "Commencer la mesure"</Text>
+                <Text style={styles.stepText}>4. La lecture se fera automatiquement</Text>
               </View>
             </View>
           )}
         </View>
         
         <View style={styles.buttonContainer}>
-          {readingValue !== null ? (
-            <TouchableOpacity
-              style={[styles.button, styles.newReadingButton]}
-              onPress={() => setReadingValue(null)}
-            >
-              <RotateCw size={20} color={colors.white} />
-              <Text style={styles.buttonText}>Nouvelle mesure</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.button, measuring && styles.disabledButton]}
-              onPress={startMeasurement}
-              disabled={measuring}
-            >
-              <Droplet size={20} color={colors.white} />
-              <Text style={styles.buttonText}>
-                {measuring ? 'Mesure en cours...' : 'Commencer la mesure'}
-              </Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={[
+              styles.button, 
+              isAutoReading ? styles.activeButton : styles.inactiveButton,
+              !isDeviceConnected && styles.disabledButton
+            ]}
+            onPress={toggleAutoReading}
+            disabled={!isDeviceConnected}
+          >
+            <RotateCw size={20} color={colors.white} />
+            <Text style={styles.buttonText}>
+              {isAutoReading ? 'Arrêter la lecture' : 'Démarrer la lecture'}
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -162,14 +249,37 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
-  measurementSection: {
+  warningBanner: {
+    backgroundColor: colors.error,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    paddingHorizontal: 20,
+  },
+  warningText: {
     flex: 1,
+    color: colors.white,
+    marginLeft: 12,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  connectButton: {
+    backgroundColor: colors.white,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginLeft: 12,
+  },
+  connectButtonText: {
+    color: colors.error,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  measurementSection: {
     marginTop: 20,
-    justifyContent: 'center',
   },
   measuringContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
     padding: 30,
     backgroundColor: colors.white,
     borderRadius: 16,
@@ -180,7 +290,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   measuringText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: colors.text,
     marginTop: 20,
@@ -257,27 +367,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary,
     paddingVertical: 16,
     borderRadius: 12,
-    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
   },
-  disabledButton: {
+  activeButton: {
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
+  },
+  inactiveButton: {
     backgroundColor: colors.textLight,
     shadowColor: colors.textLight,
-  },
-  newReadingButton: {
-    backgroundColor: colors.success,
-    shadowColor: colors.success,
   },
   buttonText: {
     color: colors.white,
     fontWeight: 'bold',
     fontSize: 16,
     marginLeft: 10,
+  },
+  disabledButton: {
+    opacity: 0.5,
   },
 });

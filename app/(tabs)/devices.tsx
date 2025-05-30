@@ -1,15 +1,19 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Alert, Platform, Linking, Dimensions } from 'react-native';
 import { Stack } from 'expo-router';
 import { Bluetooth, Plus, Info, RefreshCw } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
 import { BluetoothManager } from '@/services/BluetoothManager';
 import { EmptyState } from '@/components/EmptyState';
 
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
 type Device = {
   id: string;
   name: string;
   connected: boolean;
+  serviceUUID?: string;
+  characteristicUUID?: string;
 };
 
 export default function DevicesScreen() {
@@ -17,40 +21,68 @@ export default function DevicesScreen() {
   const [pairedDevices, setPairedDevices] = useState<Device[]>([]);
   const [availableDevices, setAvailableDevices] = useState<Device[]>([]);
 
-  // Simulate Bluetooth scanning
-  const startScan = () => {
-    setIsScanning(true);
-    
-    // Simulate finding devices
-    setTimeout(() => {
-      setAvailableDevices([
-        { id: '1', name: 'GlucoSense G6', connected: false },
-        { id: '2', name: 'DiabetesMeter Pro', connected: false },
-        { id: '3', name: 'UrineScan 3000', connected: false },
-      ]);
+  const startScan = async () => {
+    try {
+      // Vérifier les permissions Bluetooth
+      const hasPermissions = await BluetoothManager.checkPermissions();
+      if (!hasPermissions) {
+        Alert.alert(
+          'Permission Bluetooth requise',
+          'L\'application a besoin d\'accéder au Bluetooth pour scanner les appareils. Veuillez activer le Bluetooth dans les paramètres de votre appareil.',
+          [
+            {
+              text: 'Annuler',
+              style: 'cancel',
+            },
+            {
+              text: 'Paramètres',
+              onPress: () => {
+                // Rediriger vers les paramètres de l'appareil
+                if (Platform.OS === 'ios') {
+                  Linking.openURL('app-settings:');
+                } else {
+                  Linking.openSettings();
+                }
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      setIsScanning(true);
+      await BluetoothManager.startScan();
+    } catch (error) {
+      console.error('Erreur lors du scan:', error);
+      Alert.alert('Erreur', 'Impossible de scanner les appareils Bluetooth. Veuillez vérifier que le Bluetooth est activé.');
+    } finally {
       setIsScanning(false);
-    }, 2000);
+    }
   };
 
-  const connectToDevice = (device: Device) => {
-    // Simulate connecting to a device
-    Alert.alert('Connexion', `Connexion à ${device.name}...`);
-    
-    setTimeout(() => {
-      // Add to paired devices
+  const connectToDevice = async (device: Device) => {
+    try {
+      // Connexion à l'appareil via le BluetoothManager
+      await BluetoothManager.connectToDevice({
+        id: device.id,
+        name: device.name,
+        serviceUUID: device.serviceUUID,
+        characteristicUUID: device.characteristicUUID
+      });
+
+      // Mise à jour de la liste des appareils
       const updatedDevice = { ...device, connected: true };
       setPairedDevices([...pairedDevices, updatedDevice]);
-      
-      // Remove from available devices
-      setAvailableDevices(
-        availableDevices.filter((d) => d.id !== device.id)
-      );
+      setAvailableDevices(availableDevices.filter((d) => d.id !== device.id));
       
       Alert.alert('Connecté', `${device.name} connecté avec succès.`);
-    }, 1500);
+    } catch (error) {
+      console.error('Erreur lors de la connexion:', error);
+      Alert.alert('Erreur', 'Impossible de se connecter à l\'appareil.');
+    }
   };
 
-  const disconnectDevice = (device: Device) => {
+  const disconnectDevice = async (device: Device) => {
     Alert.alert(
       'Déconnecter',
       `Voulez-vous déconnecter ${device.name} ?`,
@@ -62,15 +94,18 @@ export default function DevicesScreen() {
         {
           text: 'Déconnecter',
           style: 'destructive',
-          onPress: () => {
-            // Remove from paired devices
-            setPairedDevices(
-              pairedDevices.filter((d) => d.id !== device.id)
-            );
-            
-            // Add back to available devices
-            const updatedDevice = { ...device, connected: false };
-            setAvailableDevices([...availableDevices, updatedDevice]);
+          onPress: async () => {
+            try {
+              await BluetoothManager.disconnectDevice();
+              
+              // Mise à jour de la liste des appareils
+              setPairedDevices(pairedDevices.filter((d) => d.id !== device.id));
+              const updatedDevice = { ...device, connected: false };
+              setAvailableDevices([...availableDevices, updatedDevice]);
+            } catch (error) {
+              console.error('Erreur lors de la déconnexion:', error);
+              Alert.alert('Erreur', 'Impossible de déconnecter l\'appareil.');
+            }
           },
         },
       ]
@@ -102,7 +137,13 @@ export default function DevicesScreen() {
       </View>
       <TouchableOpacity 
         style={styles.infoButton}
-        onPress={() => Alert.alert('Informations', `Appareil: ${item.name}\nID: ${item.id}\nStatut: ${connected ? 'Connecté' : 'Non connecté'}`)}
+        onPress={() => Alert.alert('Informations', 
+          `Appareil: ${item.name}\n` +
+          `ID: ${item.id}\n` +
+          `Service UUID: ${item.serviceUUID || 'Non disponible'}\n` +
+          `Caractéristique UUID: ${item.characteristicUUID || 'Non disponible'}\n` +
+          `Statut: ${connected ? 'Connecté' : 'Non connecté'}`
+        )}
       >
         <Info size={20} color={colors.textSecondary} />
       </TouchableOpacity>
@@ -190,47 +231,50 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 20,
+    padding: Math.min(screenWidth * 0.05, 20),
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: Math.min(screenWidth * 0.045, 18),
     fontWeight: 'bold',
-    marginBottom: 16,
+    marginBottom: Math.min(screenHeight * 0.02, 16),
     color: colors.text,
   },
   scanSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 16,
+    marginTop: Math.min(screenHeight * 0.025, 20),
+    marginBottom: Math.min(screenHeight * 0.02, 16),
+    paddingHorizontal: Math.min(screenWidth * 0.02, 10),
   },
   scanButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingVertical: Math.min(screenHeight * 0.01, 8),
+    paddingHorizontal: Math.min(screenWidth * 0.04, 16),
+    borderRadius: Math.min(screenWidth * 0.02, 8),
   },
   scanButtonText: {
     color: colors.white,
     fontWeight: '600',
-    marginLeft: 8,
+    marginLeft: Math.min(screenWidth * 0.02, 8),
+    fontSize: Math.min(screenWidth * 0.035, 14),
   },
   deviceList: {
     flex: 1,
   },
   deviceListContent: {
-    paddingBottom: 20,
+    paddingBottom: Math.min(screenHeight * 0.025, 20),
   },
   deviceItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.white,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
+    padding: Math.min(screenWidth * 0.04, 16),
+    borderRadius: Math.min(screenWidth * 0.03, 12),
+    marginBottom: Math.min(screenHeight * 0.015, 12),
+    marginHorizontal: Math.min(screenWidth * 0.02, 10),
     shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -242,28 +286,30 @@ const styles = StyleSheet.create({
     borderLeftColor: colors.primary,
   },
   deviceIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: Math.min(screenWidth * 0.1, 40),
+    height: Math.min(screenWidth * 0.1, 40),
+    borderRadius: Math.min(screenWidth * 0.05, 20),
     backgroundColor: colors.backgroundLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: Math.min(screenWidth * 0.03, 12),
   },
   deviceInfo: {
     flex: 1,
+    justifyContent: 'center',
   },
   deviceName: {
-    fontSize: 16,
+    fontSize: Math.min(screenWidth * 0.04, 16),
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: Math.min(screenHeight * 0.005, 4),
   },
   deviceStatus: {
-    fontSize: 14,
+    fontSize: Math.min(screenWidth * 0.035, 14),
     color: colors.textSecondary,
   },
   infoButton: {
-    padding: 8,
+    padding: Math.min(screenWidth * 0.02, 8),
+    marginLeft: Math.min(screenWidth * 0.02, 8),
   },
 });

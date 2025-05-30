@@ -1,11 +1,32 @@
 import { Platform } from 'react-native';
 import { BleManager, Device, State } from 'react-native-ble-plx';
+import { DatabaseService } from '../services/DatabaseService';
+
+// Définition des types pour l'API Web Bluetooth
+declare global {
+  interface Navigator {
+    bluetooth?: {
+      getAvailability(): Promise<boolean>;
+    };
+  }
+}
+
+interface DeviceInfo {
+  id: string;
+  name: string;
+  serviceUUID?: string;
+  characteristicUUID?: string;
+}
 
 class BluetoothManagerClass {
   private manager: BleManager;
   private connectedDevice: Device | null = null;
   private listeners: Set<(device: Device | null) => void> = new Set();
   private isScanning: boolean = false;
+
+  // UUID standards pour le service de glucose
+  private readonly GLUCOSE_SERVICE_UUID = '1808'; // Service de glucose standard
+  private readonly GLUCOSE_CHARACTERISTIC_UUID = '2A18'; // Caractéristique de mesure de glucose
 
   constructor() {
     this.manager = new BleManager();
@@ -18,7 +39,7 @@ class BluetoothManagerClass {
 
   public async checkPermissions(): Promise<boolean> {
     if (Platform.OS === 'web') {
-      return navigator?.bluetooth !== undefined;
+      return navigator?.bluetooth?.getAvailability() ?? Promise.resolve(false);
     }
 
     try {
@@ -28,8 +49,9 @@ class BluetoothManagerClass {
       }
       
       if (Platform.OS === 'android') {
-        const granted = await this.manager.requestPermissions();
-        return granted || false;
+        // Vérification des permissions Android
+        const permissions = await this.manager.state();
+        return permissions === State.PoweredOn;
       }
       
       return true;
@@ -50,9 +72,9 @@ class BluetoothManagerClass {
 
       this.isScanning = true;
       
-      // Scan for devices with specific service UUID
+      // Scan pour tous les appareils Bluetooth Low Energy
       await this.manager.startDeviceScan(
-        ['YOUR_SERVICE_UUID'], // Replace with your device's service UUID
+        null, // Scanner tous les appareils BLE
         { allowDuplicates: false },
         (error, device) => {
           if (error) {
@@ -80,18 +102,33 @@ class BluetoothManagerClass {
     this.isScanning = false;
   }
 
-  public async connectToDevice(device: Device): Promise<void> {
+  public async connectToDevice(deviceInfo: DeviceInfo): Promise<void> {
     if (Platform.OS === 'web') return;
 
     try {
-      const connectedDevice = await device.connect();
-      await connectedDevice.discoverAllServicesAndCharacteristics();
+      const device = await this.manager.connectToDevice(deviceInfo.id);
+      await device.discoverAllServicesAndCharacteristics();
       
-      this.connectedDevice = connectedDevice;
-      this.notifyListeners(connectedDevice);
+      // Vérifier si l'appareil a le service et la caractéristique requis
+      const services = await device.services();
+      const glucoseService = services.find(s => s.uuid === this.GLUCOSE_SERVICE_UUID);
+      
+      if (!glucoseService) {
+        throw new Error('Service glucose non trouvé');
+      }
+
+      const characteristics = await glucoseService.characteristics();
+      const glucoseCharacteristic = characteristics.find(c => c.uuid === this.GLUCOSE_CHARACTERISTIC_UUID);
+      
+      if (!glucoseCharacteristic) {
+        throw new Error('Caractéristique glucose non trouvée');
+      }
+
+      this.connectedDevice = device;
+      this.notifyListeners(device);
       
       // Set up notification listener for glucose readings
-      await this.setupGlucoseNotifications(connectedDevice);
+      await this.setupGlucoseNotifications(device);
     } catch (error) {
       console.error('Error connecting to device:', error);
       throw error;
@@ -135,16 +172,44 @@ class BluetoothManagerClass {
     }
   }
 
-  private parseGlucoseReading(value: string): number {
-    // Implement parsing logic based on your device's data format
-    // This is just an example
-    const buffer = Buffer.from(value, 'base64');
-    return buffer.readUInt16LE(0);
+  private parseGlucoseReading(value: string): { type: 'blood' | 'urine', value: number, unit: string } {
+    try {
+      // Format attendu: [ech:sang][valeur:150][unit:mg/dl]
+      const matches = value.match(/\[ech:(\w+)\]\[valeur:(\d+)\]\[unit:(\w+\/\w+)\]/);
+      
+      if (!matches) {
+        throw new Error('Format de données invalide');
+      }
+
+      const [, type, valueStr, unit] = matches;
+      
+      // Convertir le type en format interne
+      const readingType = type.toLowerCase() === 'sang' ? 'blood' : 'urine';
+      
+      return {
+        type: readingType,
+        value: parseInt(valueStr, 10),
+        unit: unit.toLowerCase()
+      };
+    } catch (error) {
+      console.error('Erreur lors du parsing des données:', error);
+      throw error;
+    }
   }
 
-  private async handleGlucoseReading(reading: number): Promise<void> {
-    // Implement handling logic (e.g., store in database)
-    console.log('Received glucose reading:', reading);
+  private async handleGlucoseReading(reading: { type: 'blood' | 'urine', value: number, unit: string }): Promise<void> {
+    try {
+      // Sauvegarder la lecture dans la base de données
+      await DatabaseService.saveReading({
+        type: reading.type,
+        value: reading.value,
+        unit: reading.unit,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde de la lecture:', error);
+      throw error;
+    }
   }
 
   public addListener(listener: (device: Device | null) => void): () => void {

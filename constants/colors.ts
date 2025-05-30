@@ -1,24 +1,30 @@
 export const colors = {
-  primary: '#2D68C4',
-  secondary: '#20BDBE',
-  success: '#32D583',
-  warning: '#F2994A',
-  error: '#EB5757',
-  info: '#2F80ED',
+  // Couleurs principales
+  primary: '#007AFF',
+  secondary: '#5856D6',
+  success: '#34C759',
+  warning: '#FF9500',
+  error: '#FF3B30',
+  info: '#5AC8FA',
   
-  text: '#1A2138',
-  textSecondary: '#4F566B',
-  textLight: '#A3ACBD',
+  // Couleurs de texte
+  text: '#000000',
+  textSecondary: '#8E8E93',
+  textLight: '#C7C7CC',
   
-  background: '#F7F9FC',
-  backgroundLight: '#EDF2F7',
+  // Couleurs de fond
+  background: '#F2F2F7',
+  backgroundLight: '#FFFFFF',
   white: '#FFFFFF',
   
-  border: '#E2E8F0',
+  // Couleurs de bordure
+  border: '#E5E5EA',
+  
+  // Couleurs d'ombre
   shadow: '#000000',
   
-  // Status colors
-  low: '#EB5757',
-  normal: '#32D583',
-  high: '#F2994A',
+  // Couleurs de seuil
+  low: '#FF3B30',
+  medium: '#FF9500',
+  high: '#34C759',
 };

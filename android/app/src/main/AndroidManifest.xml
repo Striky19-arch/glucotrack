@@ -29,6 +29,7 @@
         <data android:scheme="myapp"/>
         <data android:scheme="com.glucotracker"/>
         <data android:scheme="exp+bolt-expo-nativewind"/>
+        <data android:scheme="exp+glucose-tracker-test1"/>
       </intent-filter>
     </activity>
   </application>

@@ -1,13 +1,18 @@
 {
   "expo": {
-    "name": "bolt-expo-nativewind",
-    "slug": "bolt-expo-nativewind",
+    "name": "Glucose Tracker",
+    "slug": "glucose-tracker-test1",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/favicon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.glucotracker",
@@ -23,7 +28,8 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-splash-screen"
     ],
     "experiments": {
       "typedRoutes": true
@@ -31,11 +37,12 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "4a9a269f-ee47-41e4-872c-899c3d355b7a"
+        "projectId": "900c9731-db6f-439e-b995-76a54cc89770"
       }
     },
     "android": {
       "package": "com.glucotracker"
-    }
+    },
+    "owner": "raoulconstructeur"
   }
 }

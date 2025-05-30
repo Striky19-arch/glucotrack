@@ -5,9 +5,24 @@ import { Save, ChevronRight, Bell, Clock, FileSliders as Sliders, Ruler, LifeBuo
 import { colors } from '@/constants/colors';
 import { SettingsService } from '@/services/SettingsService';
 import { BMICalculator } from '@/components/BMICalculator';
+import { useTheme } from '@/contexts/ThemeContext';
+
+type Profile = {
+  age: string;
+  weight: string;
+  height: string;
+  gender: 'male' | 'female';
+};
+
+type Preferences = {
+  unit: 'mg/dL' | 'mmol/L';
+  notifications: boolean;
+  darkMode: boolean;
+};
 
 export default function SettingsScreen() {
-  const [profile, setProfile] = useState({
+  const { isDarkMode, toggleTheme, themeColors } = useTheme();
+  const [profile, setProfile] = useState<Profile>({
     age: '',
     weight: '',
     height: '',
@@ -21,7 +36,7 @@ export default function SettingsScreen() {
     urineHigh: '15',
   });
   
-  const [preferences, setPreferences] = useState({
+  const [preferences, setPreferences] = useState<Preferences>({
     unit: 'mg/dL',
     notifications: true,
     darkMode: false,
@@ -36,7 +51,12 @@ export default function SettingsScreen() {
       
       if (savedProfile) setProfile(savedProfile);
       if (savedThresholds) setThresholds(savedThresholds);
-      if (savedPreferences) setPreferences(savedPreferences);
+      if (savedPreferences) {
+        setPreferences(savedPreferences);
+        if (savedPreferences.darkMode !== isDarkMode) {
+          toggleTheme();
+        }
+      }
     };
     
     loadSettings();
@@ -65,26 +85,27 @@ export default function SettingsScreen() {
     const updatedPreferences = { ...preferences, darkMode: value };
     setPreferences(updatedPreferences);
     SettingsService.savePreferences(updatedPreferences);
+    toggleTheme();
   };
 
   // Change unit
-  const changeUnit = (unit: string) => {
+  const changeUnit = (unit: 'mg/dL' | 'mmol/L') => {
     const updatedPreferences = { ...preferences, unit };
     setPreferences(updatedPreferences);
     SettingsService.savePreferences(updatedPreferences);
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <Stack.Screen
         options={{
           title: 'Paramètres',
           headerShown: true,
           headerStyle: {
-            backgroundColor: colors.white,
+            backgroundColor: themeColors.white,
           },
           headerTitleStyle: {
-            color: colors.text,
+            color: themeColors.text,
             fontWeight: '600',
           },
           headerShadowVisible: false,
@@ -92,56 +113,71 @@ export default function SettingsScreen() {
       />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.sectionTitle}>Profil personnel</Text>
+        <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Profil personnel</Text>
         
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: themeColors.white }]}>
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Âge</Text>
+            <Text style={[styles.label, { color: themeColors.textSecondary }]}>Âge</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { 
+                borderColor: themeColors.border,
+                color: themeColors.text,
+                backgroundColor: themeColors.backgroundLight,
+              }]}
               value={profile.age}
               onChangeText={(text) => setProfile({ ...profile, age: text })}
               keyboardType="numeric"
               placeholder="Âge en années"
+              placeholderTextColor={themeColors.textLight}
             />
           </View>
           
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Poids (kg)</Text>
+            <Text style={[styles.label, { color: themeColors.textSecondary }]}>Poids (kg)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { 
+                borderColor: themeColors.border,
+                color: themeColors.text,
+                backgroundColor: themeColors.backgroundLight,
+              }]}
               value={profile.weight}
               onChangeText={(text) => setProfile({ ...profile, weight: text })}
               keyboardType="numeric"
               placeholder="Poids en kg"
+              placeholderTextColor={themeColors.textLight}
             />
           </View>
           
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Taille (cm)</Text>
+            <Text style={[styles.label, { color: themeColors.textSecondary }]}>Taille (cm)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { 
+                borderColor: themeColors.border,
+                color: themeColors.text,
+                backgroundColor: themeColors.backgroundLight,
+              }]}
               value={profile.height}
               onChangeText={(text) => setProfile({ ...profile, height: text })}
               keyboardType="numeric"
               placeholder="Taille en cm"
+              placeholderTextColor={themeColors.textLight}
             />
           </View>
           
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Genre</Text>
-            <View style={styles.genderSelector}>
+            <Text style={[styles.label, { color: themeColors.textSecondary }]}>Genre</Text>
+            <View style={[styles.genderSelector, { borderColor: themeColors.border }]}>
               <TouchableOpacity
                 style={[
                   styles.genderOption,
-                  profile.gender === 'male' && styles.selectedGender,
+                  profile.gender === 'male' && { backgroundColor: themeColors.primary },
                 ]}
                 onPress={() => setProfile({ ...profile, gender: 'male' })}
               >
                 <Text
                   style={[
                     styles.genderText,
-                    profile.gender === 'male' && styles.selectedGenderText,
+                    { color: profile.gender === 'male' ? themeColors.white : themeColors.text },
                   ]}
                 >
                   Homme
@@ -151,14 +187,14 @@ export default function SettingsScreen() {
               <TouchableOpacity
                 style={[
                   styles.genderOption,
-                  profile.gender === 'female' && styles.selectedGender,
+                  profile.gender === 'female' && { backgroundColor: themeColors.primary },
                 ]}
                 onPress={() => setProfile({ ...profile, gender: 'female' })}
               >
                 <Text
                   style={[
                     styles.genderText,
-                    profile.gender === 'female' && styles.selectedGenderText,
+                    { color: profile.gender === 'female' ? themeColors.white : themeColors.text },
                   ]}
                 >
                   Femme
@@ -167,107 +203,132 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          {/* BMI Calculator */}
           <BMICalculator 
             weight={parseFloat(profile.weight) || 0}
             height={parseFloat(profile.height) || 0}
           />
           
-          <TouchableOpacity style={styles.saveButton} onPress={saveProfile}>
-            <Save size={18} color={colors.white} />
+          <TouchableOpacity 
+            style={[styles.saveButton, { backgroundColor: themeColors.primary }]} 
+            onPress={saveProfile}
+          >
+            <Save size={18} color={themeColors.white} />
             <Text style={styles.saveButtonText}>Enregistrer</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionTitle}>Valeurs seuils</Text>
+        <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Valeurs seuils</Text>
         
-        <View style={styles.card}>
-          <Text style={styles.subSectionTitle}>Glycémie sanguine</Text>
+        <View style={[styles.card, { backgroundColor: themeColors.white }]}>
+          <Text style={[styles.subSectionTitle, { color: themeColors.text }]}>Glycémie sanguine</Text>
           
           <View style={styles.thresholdContainer}>
             <View style={styles.thresholdGroup}>
-              <Text style={styles.thresholdLabel}>Seuil bas</Text>
-              <View style={styles.thresholdInputContainer}>
+              <Text style={[styles.thresholdLabel, { color: themeColors.textSecondary }]}>Seuil bas</Text>
+              <View style={[styles.thresholdInputContainer, { borderColor: themeColors.border }]}>
                 <TextInput
-                  style={styles.thresholdInput}
+                  style={[styles.thresholdInput, { 
+                    color: themeColors.text,
+                    backgroundColor: themeColors.backgroundLight,
+                  }]}
                   value={thresholds.bloodLow}
                   onChangeText={(text) => setThresholds({ ...thresholds, bloodLow: text })}
                   keyboardType="numeric"
                 />
-                <Text style={styles.unitText}>{preferences.unit}</Text>
+                <Text style={[styles.unitText, { color: themeColors.textSecondary }]}>
+                  {preferences.unit}
+                </Text>
               </View>
             </View>
             
             <View style={styles.thresholdGroup}>
-              <Text style={styles.thresholdLabel}>Seuil haut</Text>
-              <View style={styles.thresholdInputContainer}>
+              <Text style={[styles.thresholdLabel, { color: themeColors.textSecondary }]}>Seuil haut</Text>
+              <View style={[styles.thresholdInputContainer, { borderColor: themeColors.border }]}>
                 <TextInput
-                  style={styles.thresholdInput}
+                  style={[styles.thresholdInput, { 
+                    color: themeColors.text,
+                    backgroundColor: themeColors.backgroundLight,
+                  }]}
                   value={thresholds.bloodHigh}
                   onChangeText={(text) => setThresholds({ ...thresholds, bloodHigh: text })}
                   keyboardType="numeric"
                 />
-                <Text style={styles.unitText}>{preferences.unit}</Text>
+                <Text style={[styles.unitText, { color: themeColors.textSecondary }]}>
+                  {preferences.unit}
+                </Text>
               </View>
             </View>
           </View>
           
-          <Text style={styles.subSectionTitle}>Glucose urinaire</Text>
+          <Text style={[styles.subSectionTitle, { color: themeColors.text }]}>Glucose urinaire</Text>
           
           <View style={styles.thresholdContainer}>
             <View style={styles.thresholdGroup}>
-              <Text style={styles.thresholdLabel}>Seuil bas</Text>
-              <View style={styles.thresholdInputContainer}>
+              <Text style={[styles.thresholdLabel, { color: themeColors.textSecondary }]}>Seuil bas</Text>
+              <View style={[styles.thresholdInputContainer, { borderColor: themeColors.border }]}>
                 <TextInput
-                  style={styles.thresholdInput}
+                  style={[styles.thresholdInput, { 
+                    color: themeColors.text,
+                    backgroundColor: themeColors.backgroundLight,
+                  }]}
                   value={thresholds.urineLow}
                   onChangeText={(text) => setThresholds({ ...thresholds, urineLow: text })}
                   keyboardType="numeric"
                 />
-                <Text style={styles.unitText}>{preferences.unit}</Text>
+                <Text style={[styles.unitText, { color: themeColors.textSecondary }]}>
+                  {preferences.unit}
+                </Text>
               </View>
             </View>
             
             <View style={styles.thresholdGroup}>
-              <Text style={styles.thresholdLabel}>Seuil haut</Text>
-              <View style={styles.thresholdInputContainer}>
+              <Text style={[styles.thresholdLabel, { color: themeColors.textSecondary }]}>Seuil haut</Text>
+              <View style={[styles.thresholdInputContainer, { borderColor: themeColors.border }]}>
                 <TextInput
-                  style={styles.thresholdInput}
+                  style={[styles.thresholdInput, { 
+                    color: themeColors.text,
+                    backgroundColor: themeColors.backgroundLight,
+                  }]}
                   value={thresholds.urineHigh}
                   onChangeText={(text) => setThresholds({ ...thresholds, urineHigh: text })}
                   keyboardType="numeric"
                 />
-                <Text style={styles.unitText}>{preferences.unit}</Text>
+                <Text style={[styles.unitText, { color: themeColors.textSecondary }]}>
+                  {preferences.unit}
+                </Text>
               </View>
             </View>
           </View>
           
-          <TouchableOpacity style={styles.saveButton} onPress={saveThresholds}>
-            <Save size={18} color={colors.white} />
+          <TouchableOpacity 
+            style={[styles.saveButton, { backgroundColor: themeColors.primary }]} 
+            onPress={saveThresholds}
+          >
+            <Save size={18} color={themeColors.white} />
             <Text style={styles.saveButtonText}>Enregistrer</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionTitle}>Préférences</Text>
+        <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Préférences</Text>
         
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: themeColors.white }]}>
           <View style={styles.settingRow}>
-            <View style={styles.settingIconContainer}>
-              <Ruler size={20} color={colors.primary} />
+            <View style={[styles.settingIconContainer, { backgroundColor: themeColors.backgroundLight }]}>
+              <Ruler size={20} color={themeColors.primary} />
             </View>
-            <Text style={styles.settingLabel}>Unité de mesure</Text>
-            <View style={styles.unitSelector}>
+            <Text style={[styles.settingLabel, { color: themeColors.text }]}>Unité de mesure</Text>
+            <View style={[styles.unitSelector, { borderColor: themeColors.border }]}>
               <TouchableOpacity
                 style={[
                   styles.unitOption,
-                  preferences.unit === 'mg/dL' && styles.selectedUnit,
+                  preferences.unit === 'mg/dL' && { backgroundColor: themeColors.primary },
                 ]}
                 onPress={() => changeUnit('mg/dL')}
               >
                 <Text
                   style={[
                     styles.unitOptionText,
-                    preferences.unit === 'mg/dL' && styles.selectedUnitText,
+                    { color: preferences.unit === 'mg/dL' ? themeColors.white : themeColors.text },
                   ]}
                 >
                   mg/dL
@@ -277,14 +338,14 @@ export default function SettingsScreen() {
               <TouchableOpacity
                 style={[
                   styles.unitOption,
-                  preferences.unit === 'mmol/L' && styles.selectedUnit,
+                  preferences.unit === 'mmol/L' && { backgroundColor: themeColors.primary },
                 ]}
                 onPress={() => changeUnit('mmol/L')}
               >
                 <Text
                   style={[
                     styles.unitOptionText,
-                    preferences.unit === 'mmol/L' && styles.selectedUnitText,
+                    { color: preferences.unit === 'mmol/L' ? themeColors.white : themeColors.text },
                   ]}
                 >
                   mmol/L
@@ -293,62 +354,62 @@ export default function SettingsScreen() {
             </View>
           </View>
           
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: themeColors.border }]} />
           
           <View style={styles.settingRow}>
-            <View style={styles.settingIconContainer}>
-              <Bell size={20} color={colors.primary} />
+            <View style={[styles.settingIconContainer, { backgroundColor: themeColors.backgroundLight }]}>
+              <Bell size={20} color={themeColors.primary} />
             </View>
-            <Text style={styles.settingLabel}>Notifications</Text>
+            <Text style={[styles.settingLabel, { color: themeColors.text }]}>Notifications</Text>
             <Switch
               value={preferences.notifications}
               onValueChange={toggleNotifications}
-              trackColor={{ false: colors.backgroundLight, true: colors.primary }}
-              thumbColor={colors.white}
+              trackColor={{ false: themeColors.backgroundLight, true: themeColors.primary }}
+              thumbColor={themeColors.white}
             />
           </View>
           
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: themeColors.border }]} />
           
           <View style={styles.settingRow}>
-            <View style={styles.settingIconContainer}>
-              <Clock size={20} color={colors.primary} />
+            <View style={[styles.settingIconContainer, { backgroundColor: themeColors.backgroundLight }]}>
+              <Clock size={20} color={themeColors.primary} />
             </View>
-            <Text style={styles.settingLabel}>Mode sombre</Text>
+            <Text style={[styles.settingLabel, { color: themeColors.text }]}>Mode sombre</Text>
             <Switch
-              value={preferences.darkMode}
+              value={isDarkMode}
               onValueChange={toggleDarkMode}
-              trackColor={{ false: colors.backgroundLight, true: colors.primary }}
-              thumbColor={colors.white}
+              trackColor={{ false: themeColors.backgroundLight, true: themeColors.primary }}
+              thumbColor={themeColors.white}
             />
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Support</Text>
+        <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Support</Text>
         
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: themeColors.white }]}>
           <TouchableOpacity style={styles.supportRow}>
-            <View style={styles.supportIconContainer}>
-              <LifeBuoy size={20} color={colors.primary} />
+            <View style={[styles.supportIconContainer, { backgroundColor: themeColors.backgroundLight }]}>
+              <LifeBuoy size={20} color={themeColors.primary} />
             </View>
-            <Text style={styles.supportLabel}>Aide et documentation</Text>
-            <ChevronRight size={20} color={colors.textLight} />
+            <Text style={[styles.supportLabel, { color: themeColors.text }]}>Aide et documentation</Text>
+            <ChevronRight size={20} color={themeColors.textLight} />
           </TouchableOpacity>
           
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: themeColors.border }]} />
           
           <TouchableOpacity style={styles.supportRow}>
-            <View style={styles.supportIconContainer}>
-              <Sliders size={20} color={colors.primary} />
+            <View style={[styles.supportIconContainer, { backgroundColor: themeColors.backgroundLight }]}>
+              <Sliders size={20} color={themeColors.primary} />
             </View>
-            <Text style={styles.supportLabel}>Options avancées</Text>
-            <ChevronRight size={20} color={colors.textLight} />
+            <Text style={[styles.supportLabel, { color: themeColors.text }]}>Options avancées</Text>
+            <ChevronRight size={20} color={themeColors.textLight} />
           </TouchableOpacity>
         </View>
         
         <View style={styles.appInfoContainer}>
-          <Text style={styles.appVersion}>GlucoTrack v1.0.0</Text>
-          <Text style={styles.appCopyright}>© 2025 GlucoTrack</Text>
+          <Text style={[styles.appVersion, { color: themeColors.textSecondary }]}>GlucoTrack v1.0.0</Text>
+          <Text style={[styles.appCopyright, { color: themeColors.textLight }]}>© 2025 GlucoTrack</Text>
         </View>
       </ScrollView>
     </View>

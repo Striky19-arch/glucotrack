@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import { Stack } from 'expo-router';
 import { Calendar, Filter, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
@@ -24,7 +24,6 @@ export default function TrackingScreen() {
   // Load data from database based on filters
   useEffect(() => {
     const loadData = async () => {
-      // This would fetch data from the database with the applied filters
       const data = await DatabaseService.getReadings(readingType, dateRange.start, dateRange.end);
       setReadings(data);
     };
@@ -66,6 +65,139 @@ export default function TrackingScreen() {
     });
   };
 
+  const renderHeader = () => (
+    <>
+      <View style={styles.filterSection}>
+        <TouchableOpacity
+          style={styles.dateRangeButton}
+          onPress={() => setShowDatePicker(true)}
+        >
+          <Calendar size={16} color={colors.textSecondary} />
+          <Text style={styles.dateRangeText}>
+            {formatDate(dateRange.start)} - {formatDate(dateRange.end)}
+          </Text>
+          <ChevronRight size={16} color={colors.textSecondary} />
+        </TouchableOpacity>
+
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterScrollView}
+          data={['7days', '30days', '90days', 'custom']}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={[
+                styles.filterButton,
+                filterPeriod === item && styles.activeFilterButton,
+              ]}
+              onPress={() => handlePeriodChange(item as FilterPeriod)}
+            >
+              <Text
+                style={[
+                  styles.filterButtonText,
+                  filterPeriod === item && styles.activeFilterText,
+                ]}
+              >
+                {item === '7days' ? '7 jours' : item === '30days' ? '30 jours' : item === '90days' ? '90 jours' : 'Personnalisé'}
+              </Text>
+            </TouchableOpacity>
+          )}
+          keyExtractor={(item) => item}
+        />
+
+        <View style={styles.typeFilter}>
+          <TouchableOpacity
+            style={[
+              styles.typeButton,
+              readingType === 'all' && styles.activeTypeButton,
+            ]}
+            onPress={() => setReadingType('all')}
+          >
+            <Text
+              style={[
+                styles.typeButtonText,
+                readingType === 'all' && styles.activeTypeText,
+              ]}
+            >
+              Tous
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.typeButton,
+              readingType === 'blood' && styles.activeTypeButton,
+            ]}
+            onPress={() => setReadingType('blood')}
+          >
+            <Text
+              style={[
+                styles.typeButtonText,
+                readingType === 'blood' && styles.activeTypeText,
+              ]}
+            >
+              Sang
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.typeButton,
+              readingType === 'urine' && styles.activeTypeButton,
+            ]}
+            onPress={() => setReadingType('urine')}
+          >
+            <Text
+              style={[
+                styles.typeButtonText,
+                readingType === 'urine' && styles.activeTypeText,
+              ]}
+            >
+              Urine
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ChartContainer 
+        data={readings}
+        dateRange={dateRange}
+        readingType={readingType}
+      />
+
+      <View style={styles.statsContainer}>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>
+            {readings.length > 0 
+              ? Math.round(readings.reduce((sum, item) => sum + item.value, 0) / readings.length) 
+              : '--'}
+          </Text>
+          <Text style={styles.statLabel}>Moyenne</Text>
+        </View>
+        
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>
+            {readings.length > 0 
+              ? Math.max(...readings.map(item => item.value))
+              : '--'}
+          </Text>
+          <Text style={styles.statLabel}>Maximum</Text>
+        </View>
+        
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>
+            {readings.length > 0 
+              ? Math.min(...readings.map(item => item.value))
+              : '--'}
+          </Text>
+          <Text style={styles.statLabel}>Minimum</Text>
+        </View>
+      </View>
+
+      <Text style={styles.sectionTitle}>Historique des mesures</Text>
+    </>
+  );
+
   return (
     <View style={styles.container}>
       <Stack.Screen
@@ -83,189 +215,36 @@ export default function TrackingScreen() {
         }}
       />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.filterSection}>
-          <TouchableOpacity
-            style={styles.dateRangeButton}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <Calendar size={16} color={colors.textSecondary} />
-            <Text style={styles.dateRangeText}>
-              {formatDate(dateRange.start)} - {formatDate(dateRange.end)}
-            </Text>
-            <ChevronRight size={16} color={colors.textSecondary} />
-          </TouchableOpacity>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.filterScrollView}
-          >
-            <TouchableOpacity
-              style={[
-                styles.filterButton,
-                filterPeriod === '7days' && styles.activeFilterButton,
-              ]}
-              onPress={() => handlePeriodChange('7days')}
-            >
-              <Text
-                style={[
-                  styles.filterButtonText,
-                  filterPeriod === '7days' && styles.activeFilterText,
-                ]}
-              >
-                7 jours
+      <FlatList
+        data={readings}
+        renderItem={({ item }) => (
+          <View style={styles.readingItem}>
+            <View style={[styles.typeIndicator, { backgroundColor: item.type === 'blood' ? colors.error : colors.warning }]} />
+            <View style={styles.readingDetails}>
+              <Text style={styles.readingType}>
+                {item.type === 'blood' ? 'Glycémie' : 'Glucose urinaire'}
               </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.filterButton,
-                filterPeriod === '30days' && styles.activeFilterButton,
-              ]}
-              onPress={() => handlePeriodChange('30days')}
-            >
-              <Text
-                style={[
-                  styles.filterButtonText,
-                  filterPeriod === '30days' && styles.activeFilterText,
-                ]}
-              >
-                30 jours
+              <Text style={styles.readingDate}>
+                {new Date(item.timestamp).toLocaleDateString('fr-FR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
               </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.filterButton,
-                filterPeriod === '90days' && styles.activeFilterButton,
-              ]}
-              onPress={() => handlePeriodChange('90days')}
-            >
-              <Text
-                style={[
-                  styles.filterButtonText,
-                  filterPeriod === '90days' && styles.activeFilterText,
-                ]}
-              >
-                90 jours
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.filterButton,
-                filterPeriod === 'custom' && styles.activeFilterButton,
-              ]}
-              onPress={() => handlePeriodChange('custom')}
-            >
-              <Text
-                style={[
-                  styles.filterButtonText,
-                  filterPeriod === 'custom' && styles.activeFilterText,
-                ]}
-              >
-                Personnalisé
-              </Text>
-            </TouchableOpacity>
-          </ScrollView>
-
-          <View style={styles.typeFilter}>
-            <TouchableOpacity
-              style={[
-                styles.typeButton,
-                readingType === 'all' && styles.activeTypeButton,
-              ]}
-              onPress={() => setReadingType('all')}
-            >
-              <Text
-                style={[
-                  styles.typeButtonText,
-                  readingType === 'all' && styles.activeTypeText,
-                ]}
-              >
-                Tous
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.typeButton,
-                readingType === 'blood' && styles.activeTypeButton,
-              ]}
-              onPress={() => setReadingType('blood')}
-            >
-              <Text
-                style={[
-                  styles.typeButtonText,
-                  readingType === 'blood' && styles.activeTypeText,
-                ]}
-              >
-                Sang
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.typeButton,
-                readingType === 'urine' && styles.activeTypeButton,
-              ]}
-              onPress={() => setReadingType('urine')}
-            >
-              <Text
-                style={[
-                  styles.typeButtonText,
-                  readingType === 'urine' && styles.activeTypeText,
-                ]}
-              >
-                Urine
-              </Text>
-            </TouchableOpacity>
+            </View>
+            <View style={styles.readingValue}>
+              <Text style={styles.valueText}>{item.value}</Text>
+              <Text style={styles.unitText}>mg/dL</Text>
+            </View>
           </View>
-        </View>
-
-        <ChartContainer 
-          data={readings}
-          dateRange={dateRange}
-          readingType={readingType}
-        />
-
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>
-              {readings.length > 0 
-                ? Math.round(readings.reduce((sum, item) => sum + item.value, 0) / readings.length) 
-                : '--'}
-            </Text>
-            <Text style={styles.statLabel}>Moyenne</Text>
-          </View>
-          
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>
-              {readings.length > 0 
-                ? Math.max(...readings.map(item => item.value))
-                : '--'}
-            </Text>
-            <Text style={styles.statLabel}>Maximum</Text>
-          </View>
-          
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>
-              {readings.length > 0 
-                ? Math.min(...readings.map(item => item.value))
-                : '--'}
-            </Text>
-            <Text style={styles.statLabel}>Minimum</Text>
-          </View>
-        </View>
-
-        <Text style={styles.sectionTitle}>Historique des mesures</Text>
-        
-        <ReadingsList 
-          readings={readings}
-          emptyMessage="Aucune mesure trouvée pour cette période"
-        />
-      </ScrollView>
+        )}
+        keyExtractor={(item, index) => `reading-${index}`}
+        ListHeaderComponent={renderHeader}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      />
       
       {showDatePicker && (
         <DateRangePicker
@@ -288,7 +267,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    flex: 1,
     padding: 20,
   },
   filterSection: {
@@ -390,5 +368,49 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     marginTop: 8,
     color: colors.text,
+  },
+  readingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    marginBottom: 12,
+    padding: 16,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  typeIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  readingDetails: {
+    flex: 1,
+  },
+  readingType: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  readingDate: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  readingValue: {
+    alignItems: 'flex-end',
+  },
+  valueText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  unitText: {
+    fontSize: 12,
+    fontWeight: 'normal',
+    color: colors.textSecondary,
   },
 });
