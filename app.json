@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.glucotracker",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "web": {
       "bundler": "metro",
@@ -29,6 +33,9 @@
       "eas": {
         "projectId": "4a9a269f-ee47-41e4-872c-899c3d355b7a"
       }
+    },
+    "android": {
+      "package": "com.glucotracker"
     }
   }
 }
